@@ -37,67 +37,37 @@ def run():
         ctx  = browser.new_context(accept_downloads=True)
         page = ctx.new_page()
 
-        # cap/authorization -> xauth.coupang.com 으로 리다이렉트됨
-        print("로그인 페이지 접속...")
-        page.goto("https://advertising.coupang.com/user/cap/authorization", wait_until="networkidle")
-        time.sleep(5)  # xauth 리다이렉트 및 JS 렌더링 충분히 대기
+        # xauth.coupang.com 로그인 페이지 직접 접속 (state/code_challenge 없이 기본 파라미터만)
+        LOGIN_URL = (
+            "https://xauth.coupang.com/auth/realms/cmg/protocol/openid-connect/auth"
+            "?client_id=cmg_agency_compat"
+            "&scope=openid%20email"
+            "&response_type=code"
+            "&redirect_uri=https%3A%2F%2Fadvertising.coupang.com%2Fuser%2Fcap%2Fauthorization-callback"
+        )
+
+        print("로그인 페이지 직접 접속...")
+        page.goto(LOGIN_URL, wait_until="networkidle")
+        time.sleep(3)
         print(f"현재 URL: {page.url}")
         page.screenshot(path="debug_01_login_page.png")
 
-        # 페이지의 모든 input 요소 확인
+        # Input 요소 확인 (디버깅)
         inputs = page.evaluate("""
             () => Array.from(document.querySelectorAll('input')).map(el => ({
-                id: el.id, name: el.name, type: el.type,
-                placeholder: el.placeholder, class: el.className.slice(0,50)
+                id: el.id, name: el.name, type: el.type, placeholder: el.placeholder
             }))
         """)
         print(f"Input 요소들: {inputs}")
 
-        # #username 또는 다른 이메일 입력창 찾기
-        # xauth.coupang.com의 실제 셀렉터 시도
-        id_selectors = ['#username', 'input[name="username"]', 'input[type="email"]',
-                        'input[type="text"]', 'input[placeholder*="이메일"]',
-                        'input[placeholder*="email"]', 'input[placeholder*="Email"]',
-                        'input[placeholder*="아이디"]', 'input[id*="user"]']
-
-        id_filled = False
-        for sel in id_selectors:
-            try:
-                el = page.locator(sel).first
-                if el.count() > 0 or page.locator(sel).count() > 0:
-                    page.fill(sel, COUPANG_ID, timeout=3000)
-                    print(f"아이디 입력 성공: {sel}")
-                    id_filled = True
-                    break
-            except Exception as e:
-                print(f"셀렉터 실패 {sel}: {e}")
-                continue
-
-        if not id_filled:
-            raise Exception("아이디 입력창을 찾지 못했습니다. debug_01_login_page.png 확인")
-
-        # 비밀번호 입력
-        pw_selectors = ['#password', 'input[name="password"]', 'input[type="password"]',
-                        'input[placeholder*="비밀번호"]', 'input[placeholder*="password"]']
-        for sel in pw_selectors:
-            try:
-                page.fill(sel, COUPANG_PW, timeout=3000)
-                print(f"비밀번호 입력 성공: {sel}")
-                break
-            except Exception:
-                continue
-
-        # 로그인 버튼 클릭
-        login_selectors = ['#kc-login', 'input[type="submit"]', 'button[type="submit"]',
-                           'button:has-text("로그인")', 'button:has-text("Log in")',
-                           'button:has-text("Sign in")', '.login-btn']
-        for sel in login_selectors:
-            try:
-                page.click(sel, timeout=3000)
-                print(f"로그인 버튼 클릭: {sel}")
-                break
-            except Exception:
-                continue
+        # 아이디/비밀번호 입력
+        page.wait_for_selector('#username', state='visible', timeout=10000)
+        page.fill('#username', COUPANG_ID)
+        print("아이디 입력 완료")
+        page.fill('#password', COUPANG_PW)
+        print("비밀번호 입력 완료")
+        page.click('#kc-login')
+        print("로그인 버튼 클릭")
 
         page.wait_for_load_state("networkidle")
         time.sleep(3)
