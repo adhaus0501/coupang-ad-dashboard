@@ -37,29 +37,28 @@ def run():
         ctx  = browser.new_context(accept_downloads=True)
         page = ctx.new_page()
 
-        # 1. 로그인 페이지 접속
+        # 1. 첫 화면 접속 (광고대행사/분석가 선택 화면)
         print("로그인 페이지 접속...")
         page.goto("https://advertising.coupang.com/user/login", wait_until="networkidle")
         time.sleep(2)
         page.screenshot(path="debug_01_first_page.png")
 
-        # 2. "로그인하기" 버튼 클릭 (첫 화면에서 담당자 로그인으로 이동)
-        try:
-            page.click('button:has-text("로그인하기"), a:has-text("로그인하기")', timeout=6000)
-            page.wait_for_load_state("networkidle")
-            time.sleep(2)
-            print("로그인하기 버튼 클릭 완료")
-        except PWTimeout:
-            print("로그인하기 버튼 없음 - 바로 입력 시도")
-
+        # 2. 오른쪽 "로그인하기" 버튼 반드시 클릭 (담당자 로그인 화면으로 이동)
+        print("로그인하기 버튼 클릭 중...")
+        page.wait_for_selector('button:has-text("로그인하기"), a:has-text("로그인하기")', timeout=10000)
+        page.click('button:has-text("로그인하기"), a:has-text("로그인하기")')
+        page.wait_for_load_state("networkidle")
+        time.sleep(2)
         page.screenshot(path="debug_02_login_form.png")
+        print("담당자 로그인 화면 진입")
 
-        # 3. 아이디/비밀번호 입력 (실제 셀렉터: #username, #password, #kc-login)
-        page.fill('#username', COUPANG_ID, timeout=10000)
+        # 3. #username 입력창 대기 후 로그인
+        page.wait_for_selector('#username', state='visible', timeout=10000)
+        page.fill('#username', COUPANG_ID)
         print("아이디 입력 완료")
-        page.fill('#password', COUPANG_PW, timeout=10000)
+        page.fill('#password', COUPANG_PW)
         print("비밀번호 입력 완료")
-        page.click('#kc-login', timeout=10000)
+        page.click('#kc-login')
         print("로그인 버튼 클릭")
 
         page.wait_for_load_state("networkidle")
@@ -93,14 +92,12 @@ def download_for(page, adv_id, adv_name, idx):
 
     page.screenshot(path=f"debug_{idx:02d}_{adv_id}_01_select.png")
 
-    # 계정 ID 검색
     for sel in ['input[placeholder*="검색"]', 'input[placeholder*="광고주"]', '#advertiserSearch']:
         try:
             page.fill(sel, adv_id, timeout=3000); time.sleep(1)
             print(f"검색: {adv_id}"); break
         except Exception: continue
 
-    # 해당 계정 클릭
     try:
         page.click(f'li:has-text("{adv_id}"), td:has-text("{adv_id}")', timeout=7000)
     except PWTimeout:
@@ -109,14 +106,12 @@ def download_for(page, adv_id, adv_name, idx):
     page.wait_for_load_state("networkidle"); time.sleep(2)
     page.screenshot(path=f"debug_{idx:02d}_{adv_id}_02_home.png")
 
-    # 광고보고서 메뉴
     try:
         page.click('a:has-text("광고보고서"), a:has-text("광고 보고서")', timeout=6000)
         page.wait_for_load_state("networkidle"); time.sleep(1)
     except PWTimeout:
         page.goto("https://advertising.coupang.com/report/campaign", wait_until="networkidle"); time.sleep(2)
 
-    # 매출 성장 광고 보고서
     try:
         page.click('a:has-text("매출 성장 광고 보고서"), li:has-text("매출 성장")', timeout=6000)
         page.wait_for_load_state("networkidle"); time.sleep(2)
@@ -125,7 +120,6 @@ def download_for(page, adv_id, adv_name, idx):
 
     page.screenshot(path=f"debug_{idx:02d}_{adv_id}_03_report.png")
 
-    # 날짜 설정 (전일)
     try:
         page.click('.date-picker, [class*="datePicker"]', timeout=4000); time.sleep(1)
         for sel in ['input[class*="start"]', 'input[name*="start"]']:
@@ -138,7 +132,6 @@ def download_for(page, adv_id, adv_name, idx):
     except Exception as e:
         print(f"날짜 설정 실패: {e}")
 
-    # 캠페인 전체 선택
     try:
         page.click('button:has-text("캠페인을 선택")', timeout=6000); time.sleep(1)
         page.click('label:has-text("전체선택"), label:has-text("전체 선택")', timeout=4000); time.sleep(1)
@@ -149,7 +142,6 @@ def download_for(page, adv_id, adv_name, idx):
 
     page.screenshot(path=f"debug_{idx:02d}_{adv_id}_04_campaign.png")
 
-    # 보고서 만들기
     try:
         page.click('button:has-text("보고서 만들기"), button:has-text("조회")', timeout=6000)
         page.wait_for_load_state("networkidle"); time.sleep(5)
@@ -159,7 +151,6 @@ def download_for(page, adv_id, adv_name, idx):
 
     page.screenshot(path=f"debug_{idx:02d}_{adv_id}_05_done.png")
 
-    # 다운로드
     with page.expect_download(timeout=30000) as dl_info:
         page.click('button:has-text("다운로드"), a:has-text("다운로드")', timeout=10000)
     dl = dl_info.value
