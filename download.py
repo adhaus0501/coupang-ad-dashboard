@@ -37,92 +37,29 @@ def run():
         ctx  = browser.new_context(accept_downloads=True)
         page = ctx.new_page()
 
-        # 담당자 로그인 페이지 직접 URL로 접근
-        # /user/login 은 선택 화면이므로 realms/coupang 경로로 직접 접근
-        login_urls = [
-            "https://advertising.coupang.com/user/login?userType=manager",
-            "https://advertising.coupang.com/auth/realms/coupang/protocol/openid-connect/auth",
-            "https://advertising.coupang.com/user/login#manager",
-        ]
-
-        print("로그인 시도 중...")
-
-        # 먼저 기본 페이지 접속 후 URL 변화 추적
-        page.goto("https://advertising.coupang.com/user/login", wait_until="networkidle")
+        # 담당자 로그인 URL로 직접 접근 (cap = 대행사/담당자)
+        print("담당자 로그인 페이지 직접 접속...")
+        page.goto("https://advertising.coupang.com/user/cap/authorization", wait_until="networkidle")
         time.sleep(3)
-        current_url = page.url
-        print(f"현재 URL: {current_url}")
-        page.screenshot(path="debug_01_initial.png")
+        print(f"현재 URL: {page.url}")
+        page.screenshot(path="debug_01_login_page.png")
 
-        # 현재 페이지에서 모든 링크/버튼의 href와 onclick 확인
-        elements_info = page.evaluate("""
-            () => {
-                const els = document.querySelectorAll('button, a, [role="button"]');
-                return Array.from(els).map(el => ({
-                    tag: el.tagName,
-                    text: el.innerText?.trim() || el.textContent?.trim() || '',
-                    href: el.href || el.getAttribute('href') || '',
-                    class: el.className || '',
-                    id: el.id || ''
-                })).filter(e => e.text || e.href);
-            }
-        """)
-        print(f"페이지 요소들: {elements_info}")
-
-        # #username이 있으면 바로 로그인
-        if page.locator('#username').count() > 0:
-            print("로그인 폼 발견 - 바로 입력")
-        else:
-            # JS로 직접 클릭 이벤트 발생
-            print("JS로 버튼 클릭 시도...")
-            clicked = page.evaluate("""
-                () => {
-                    // 모든 버튼/링크 중 오른쪽에 있는 것 클릭 (로그인하기)
-                    const btns = document.querySelectorAll('button, a, [role="button"]');
-                    const arr = Array.from(btns);
-                    // 마지막 버튼이 보통 "로그인하기"
-                    if (arr.length > 0) {
-                        const last = arr[arr.length - 1];
-                        last.click();
-                        return 'clicked: ' + (last.innerText || last.textContent || 'unknown');
-                    }
-                    return 'no buttons';
-                }
-            """)
-            print(f"JS 클릭 결과: {clicked}")
-            page.wait_for_load_state("networkidle")
-            time.sleep(3)
-            current_url = page.url
-            print(f"클릭 후 URL: {current_url}")
-            page.screenshot(path="debug_02_after_click.png")
-
-        # 그래도 없으면 URL에 파라미터 추가해서 직접 접근
-        if page.locator('#username').count() == 0:
-            print("다른 URL 시도...")
-            for url in login_urls:
-                print(f"접속: {url}")
-                page.goto(url, wait_until="networkidle")
-                time.sleep(2)
-                if page.locator('#username').count() > 0:
-                    print(f"#username 발견: {url}")
-                    break
-                print(f"URL: {page.url}")
-
-        page.screenshot(path="debug_03_before_fill.png")
-
-        # 최종 로그인 시도
+        # #username 대기
+        print("#username 대기 중...")
         page.wait_for_selector('#username', state='visible', timeout=15000)
+        print("#username 발견!")
+
         page.fill('#username', COUPANG_ID)
-        print("아이디 입력")
+        print("아이디 입력 완료")
         page.fill('#password', COUPANG_PW)
-        print("비밀번호 입력")
+        print("비밀번호 입력 완료")
         page.click('#kc-login')
         print("로그인 버튼 클릭")
 
         page.wait_for_load_state("networkidle")
         time.sleep(3)
-        page.screenshot(path="debug_04_after_login.png")
         print(f"로그인 후 URL: {page.url}")
+        page.screenshot(path="debug_02_after_login.png")
         print("로그인 완료")
 
         for idx, adv in enumerate(advertisers):
