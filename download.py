@@ -37,24 +37,67 @@ def run():
         ctx  = browser.new_context(accept_downloads=True)
         page = ctx.new_page()
 
-        # 담당자 로그인 URL로 직접 접근 (cap = 대행사/담당자)
-        print("담당자 로그인 페이지 직접 접속...")
+        # cap/authorization -> xauth.coupang.com 으로 리다이렉트됨
+        print("로그인 페이지 접속...")
         page.goto("https://advertising.coupang.com/user/cap/authorization", wait_until="networkidle")
-        time.sleep(3)
+        time.sleep(5)  # xauth 리다이렉트 및 JS 렌더링 충분히 대기
         print(f"현재 URL: {page.url}")
         page.screenshot(path="debug_01_login_page.png")
 
-        # #username 대기
-        print("#username 대기 중...")
-        page.wait_for_selector('#username', state='visible', timeout=15000)
-        print("#username 발견!")
+        # 페이지의 모든 input 요소 확인
+        inputs = page.evaluate("""
+            () => Array.from(document.querySelectorAll('input')).map(el => ({
+                id: el.id, name: el.name, type: el.type,
+                placeholder: el.placeholder, class: el.className.slice(0,50)
+            }))
+        """)
+        print(f"Input 요소들: {inputs}")
 
-        page.fill('#username', COUPANG_ID)
-        print("아이디 입력 완료")
-        page.fill('#password', COUPANG_PW)
-        print("비밀번호 입력 완료")
-        page.click('#kc-login')
-        print("로그인 버튼 클릭")
+        # #username 또는 다른 이메일 입력창 찾기
+        # xauth.coupang.com의 실제 셀렉터 시도
+        id_selectors = ['#username', 'input[name="username"]', 'input[type="email"]',
+                        'input[type="text"]', 'input[placeholder*="이메일"]',
+                        'input[placeholder*="email"]', 'input[placeholder*="Email"]',
+                        'input[placeholder*="아이디"]', 'input[id*="user"]']
+
+        id_filled = False
+        for sel in id_selectors:
+            try:
+                el = page.locator(sel).first
+                if el.count() > 0 or page.locator(sel).count() > 0:
+                    page.fill(sel, COUPANG_ID, timeout=3000)
+                    print(f"아이디 입력 성공: {sel}")
+                    id_filled = True
+                    break
+            except Exception as e:
+                print(f"셀렉터 실패 {sel}: {e}")
+                continue
+
+        if not id_filled:
+            raise Exception("아이디 입력창을 찾지 못했습니다. debug_01_login_page.png 확인")
+
+        # 비밀번호 입력
+        pw_selectors = ['#password', 'input[name="password"]', 'input[type="password"]',
+                        'input[placeholder*="비밀번호"]', 'input[placeholder*="password"]']
+        for sel in pw_selectors:
+            try:
+                page.fill(sel, COUPANG_PW, timeout=3000)
+                print(f"비밀번호 입력 성공: {sel}")
+                break
+            except Exception:
+                continue
+
+        # 로그인 버튼 클릭
+        login_selectors = ['#kc-login', 'input[type="submit"]', 'button[type="submit"]',
+                           'button:has-text("로그인")', 'button:has-text("Log in")',
+                           'button:has-text("Sign in")', '.login-btn']
+        for sel in login_selectors:
+            try:
+                page.click(sel, timeout=3000)
+                print(f"로그인 버튼 클릭: {sel}")
+                break
+            except Exception:
+                continue
 
         page.wait_for_load_state("networkidle")
         time.sleep(3)
