@@ -1,0 +1,51 @@
+name: 쿠팡 광고 데이터 자동 다운로드
+
+on:
+  schedule:
+    - cron: '0 23 * * *'
+  workflow_dispatch:
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 3.11 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 의존성 설치
+        run: |
+          pip install playwright
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: 쿠팡 광고 데이터 다운로드
+        env:
+          COUPANG_ID: ${{ secrets.COUPANG_ID }}
+          COUPANG_PW: ${{ secrets.COUPANG_PW }}
+        run: python download.py
+
+      - name: manifest.json 업데이트
+        run: python update_manifest.py
+
+      - name: 디버그 스크린샷 저장
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshot
+          path: debug_screenshot.png
+          retention-days: 3
+
+      - name: 다운로드 파일 커밋
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git diff --staged --quiet || git commit -m "📊 광고 데이터 자동 업데이트 $(date '+%Y-%m-%d')"
+          git push
