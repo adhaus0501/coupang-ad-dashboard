@@ -37,23 +37,44 @@ def run():
         ctx  = browser.new_context(accept_downloads=True)
         page = ctx.new_page()
 
-        # 1. 첫 화면 접속 (광고대행사/분석가 선택 화면)
+        # 1. 로그인 페이지 접속
         print("로그인 페이지 접속...")
         page.goto("https://advertising.coupang.com/user/login", wait_until="networkidle")
         time.sleep(2)
         page.screenshot(path="debug_01_first_page.png")
 
-        # 2. 오른쪽 "로그인하기" 버튼 반드시 클릭 (담당자 로그인 화면으로 이동)
-        print("로그인하기 버튼 클릭 중...")
-        page.wait_for_selector('button:has-text("로그인하기"), a:has-text("로그인하기")', timeout=10000)
-        page.click('button:has-text("로그인하기"), a:has-text("로그인하기")')
-        page.wait_for_load_state("networkidle")
-        time.sleep(2)
-        page.screenshot(path="debug_02_login_form.png")
-        print("담당자 로그인 화면 진입")
+        # 2. 페이지의 모든 버튼 텍스트 출력 (디버깅용)
+        buttons = page.evaluate("""
+            () => Array.from(document.querySelectorAll('button, a'))
+                       .map(el => el.textContent.trim())
+                       .filter(t => t.length > 0)
+        """)
+        print(f"페이지 버튼 목록: {buttons}")
 
-        # 3. #username 입력창 대기 후 로그인
-        page.wait_for_selector('#username', state='visible', timeout=10000)
+        # 3. #username이 있으면 바로 로그인, 없으면 버튼 클릭 시도
+        if page.locator('#username').count() > 0:
+            print("이미 로그인 화면 - 바로 입력")
+        else:
+            print("버튼 클릭 시도...")
+            # 오른쪽 버튼(마지막 버튼) 클릭
+            try:
+                # 페이지의 모든 버튼 중 마지막 것 클릭 (오른쪽 로그인하기)
+                all_btns = page.locator('button')
+                count = all_btns.count()
+                print(f"버튼 {count}개 발견")
+                if count > 0:
+                    all_btns.last.click()
+                    page.wait_for_load_state("networkidle")
+                    time.sleep(2)
+                    print("마지막 버튼 클릭 완료")
+            except Exception as e:
+                print(f"버튼 클릭 실패: {e}")
+
+        page.screenshot(path="debug_02_after_click.png")
+
+        # 4. #username 대기 후 로그인
+        print("#username 대기...")
+        page.wait_for_selector('#username', state='visible', timeout=15000)
         page.fill('#username', COUPANG_ID)
         print("아이디 입력 완료")
         page.fill('#password', COUPANG_PW)
@@ -66,7 +87,7 @@ def run():
         page.screenshot(path="debug_03_after_login.png")
         print("로그인 완료")
 
-        # 4. 각 업체코드별 다운로드
+        # 5. 각 업체코드별 다운로드
         for idx, adv in enumerate(advertisers):
             adv_id   = adv["code"]
             adv_name = adv.get("name", adv_id)
@@ -82,7 +103,6 @@ def run():
 
 
 def download_for(page, adv_id, adv_name, idx):
-    # 광고주 선택 페이지로 이동
     try:
         page.click('button:has-text("계정 전환"), button:has-text("광고주 변경")', timeout=4000)
         time.sleep(1)
