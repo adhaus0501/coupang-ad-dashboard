@@ -180,60 +180,35 @@ select.sel:focus,input.sel:focus{border-color:var(--blue)}
     <input type="text" id="companyInput" placeholder="업체명 입력">
   </div>
   <div class="hdr-date" id="hdrDate"></div>
-  <div id="autoLoadStatus" style="display:none;align-items:center;gap:6px;font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--card2)">
-    <span id="autoLoadIcon">⏳</span>
-    <span id="autoLoadMsg" style="color:var(--muted2)">데이터 불러오는 중...</span>
-  </div>
 </div>
 
 <div class="layout">
   <!-- SIDEBAR -->
   <nav class="sidebar">
     <div class="nav-section">메뉴</div>
-    <div class="nav-item active" onclick="goTab('files')" id="nav-files"><span class="ni">📁</span>파일 관리</div>
-    <div class="nav-item" onclick="goTab('analysis')" id="nav-analysis"><span class="ni">📋</span>기간 분석</div>
+    <div class="nav-item active" onclick="goTab('analysis')" id="nav-analysis"><span class="ni">📋</span>기간 분석</div>
     <div class="nav-item" onclick="goTab('compare')" id="nav-compare"><span class="ni">📊</span>기간 비교</div>
     <div class="nav-item" onclick="goTab('trend')" id="nav-trend"><span class="ni">📈</span>트렌드</div>
     <div class="nav-item" onclick="goTab('alerts')" id="nav-alerts"><span class="ni">⚠️</span>이상 감지 <span id="alertBadge" style="margin-left:auto;background:#ef444422;color:var(--red);font-size:10px;padding:1px 6px;border-radius:8px;display:none">0</span></div>
+    <div class="nav-item" onclick="goTab('advertisers')" id="nav-advertisers"><span class="ni">🏢</span>업체코드 <span id="advCnt" style="margin-left:auto;background:#2a2f3a;color:var(--muted2);font-size:10px;padding:1px 6px;border-radius:8px">0</span></div>
     <div class="nav-div"></div>
-    <div class="nav-section">업로드 파일 <span id="fcnt" style="font-size:9px;background:#2a2f3a;padding:1px 5px;border-radius:6px;color:var(--muted2);margin-left:4px">0</span></div>
-    <div class="file-list" id="fileList"><div class="no-files">파일 없음</div></div>
+    <!-- 광고주 선택 -->
+    <div class="nav-section">광고주 선택 <span id="fcnt" style="font-size:9px;background:#2a2f3a;padding:1px 5px;border-radius:6px;color:var(--muted2);margin-left:4px">0</span></div>
+    <div style="padding:6px 8px">
+      <input id="advFilterInput" type="text" placeholder="업체명/코드 검색..."
+        style="width:100%;background:var(--card2);border:1px solid var(--border);color:var(--text);
+               padding:5px 9px;border-radius:var(--radius-sm);font-size:11px;font-family:var(--ff);
+               outline:none;margin-bottom:4px"
+        oninput="refreshAdvSelector()">
+    </div>
+    <div class="file-list" id="advSelectorList"><div class="no-files">업체코드를 먼저 등록하세요</div></div>
   </nav>
 
   <!-- MAIN -->
   <div class="main">
 
-    <!-- ===== FILES TAB ===== -->
-    <div class="tab active" id="tab-files">
-      <div class="pg-hdr"><h2>📁 파일 관리</h2><p>쿠팡 광고 데이터 파일(.xlsx)을 업로드하세요. 파일명의 날짜 범위를 자동으로 인식합니다.</p></div>
-      <!-- 자동 로드 배너 -->
-      <div id="autoLoadBanner" style="margin-bottom:16px;padding:12px 16px;border-radius:var(--radius);border:1px solid var(--border);background:var(--card);display:flex;align-items:center;gap:12px">
-        <span style="font-size:20px" id="bannerIcon">⏳</span>
-        <div>
-          <div style="font-size:12px;font-weight:700;color:var(--text)" id="bannerTitle">GitHub에서 데이터 자동 로드 중...</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px" id="bannerSub">data/ 폴더의 xlsx 파일을 불러옵니다</div>
-        </div>
-        <button onclick="loadDataFolder()" style="margin-left:auto;background:var(--card2);border:1px solid var(--border);color:var(--text);padding:5px 12px;border-radius:var(--radius-sm);font-size:11px;cursor:pointer;font-family:var(--ff)">🔄 새로고침</button>
-      </div>
-      <div class="card upload-zone" id="dropZone" onclick="document.getElementById('fi').click()">
-        <div style="font-size:36px;margin-bottom:10px">☁️</div>
-        <h3>파일 드래그 또는 클릭하여 업로드</h3>
-        <p>형식: A00052217_pa_total_campaign_<b>20260309_20260315</b>.xlsx<br>일간·주간·월간 파일 모두 지원 · 여러 파일 동시 업로드 가능</p>
-        <input type="file" id="fi" accept=".xlsx,.xls" multiple>
-      </div>
-      <div class="card" id="filesTable" style="display:none">
-        <div class="card-title">📂 업로드된 파일 목록</div>
-        <div class="tbl-wrap">
-          <table>
-            <thead><tr><th>기간</th><th>파일명</th><th>유형</th><th>행수</th><th>총 광고비</th><th>총 광고매출</th><th>ROAS</th><th>삭제</th></tr></thead>
-            <tbody id="filesTbody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
     <!-- ===== ANALYSIS TAB ===== -->
-    <div class="tab" id="tab-analysis">
+    <div class="tab active" id="tab-analysis">
       <div class="pg-hdr"><h2>📋 기간 분석</h2><p>업로드된 파일(기간)을 선택하여 광고 성과를 분석합니다.</p></div>
       <div id="analysisEmpty" class="card"><div class="empty"><div class="ei">📂</div><h3>파일 없음</h3><p>파일 관리에서 데이터를 업로드해주세요.</p></div></div>
       <div id="analysisContent" style="display:none;flex-direction:column;gap:16px">
@@ -433,22 +408,102 @@ select.sel:focus,input.sel:focus{border-color:var(--blue)}
       <div id="alertsContent" style="flex-direction:column;gap:10px"></div>
     </div>
 
+    <!-- ===== ADVERTISERS TAB ===== -->
+    <div class="tab" id="tab-advertisers">
+      <div class="pg-hdr">
+        <h2>🏢 업체코드 관리</h2>
+        <p>광고주 업체명과 계정 ID를 등록합니다. 사이드바에서 업체명으로 선택해 데이터를 볼 수 있습니다.</p>
+      </div>
+
+      <div style="display:flex;gap:14px;align-items:flex-start">
+
+        <!-- 입력 패널 -->
+        <div class="card" style="width:300px;flex-shrink:0;padding:16px">
+          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px">➕ 업체 추가</div>
+          <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:4px">업체명</label>
+          <input id="advNameInput" type="text" placeholder="예: JJ마케팅"
+            style="width:100%;background:var(--card2);border:1px solid var(--border);color:var(--text);
+                   padding:8px 12px;border-radius:var(--radius-sm);font-size:13px;font-family:var(--ff);
+                   outline:none;margin-bottom:8px">
+          <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:4px">계정 ID (업체코드)</label>
+          <input id="advCodeInput" type="text" placeholder="예: A00172104"
+            style="width:100%;background:var(--card2);border:1px solid var(--border);color:var(--text);
+                   padding:8px 12px;border-radius:var(--radius-sm);font-size:13px;font-family:var(--ffm);
+                   outline:none;margin-bottom:10px"
+            onkeydown="if(event.key==='Enter') advAdd()">
+          <button onclick="advAdd()"
+            style="width:100%;background:var(--blue);border:none;color:#fff;padding:9px;
+                   border-radius:var(--radius-sm);font-size:12px;font-weight:700;cursor:pointer;font-family:var(--ff)">
+            ➕ 추가
+          </button>
+
+          <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:700">일괄 붙여넣기</div>
+            <div style="font-size:10px;color:var(--muted);margin-bottom:6px;line-height:1.5">형식: <span style="font-family:var(--ffm);color:var(--cyan)">업체명,A코드</span> (한 줄에 하나)</div>
+            <textarea id="advBulk" placeholder="JJ마케팅,A00172104&#10;브랜드B,A00632242&#10;..."
+              style="width:100%;height:110px;background:var(--card2);border:1px solid var(--border);
+                     color:var(--text);padding:8px;border-radius:var(--radius-sm);font-size:11px;
+                     font-family:var(--ffm);outline:none;resize:vertical;line-height:1.6;margin-bottom:8px"></textarea>
+            <button onclick="advBulkAdd()"
+              style="width:100%;background:var(--card2);border:1px solid var(--border);color:var(--text);
+                     padding:7px;border-radius:var(--radius-sm);font-size:12px;font-weight:700;cursor:pointer;font-family:var(--ff)">
+              일괄 추가
+            </button>
+          </div>
+
+          <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:8px">
+            <button onclick="advSaveJson()"
+              style="flex:1;background:var(--green-bg);border:1px solid #10b98133;color:var(--green);
+                     padding:7px;border-radius:var(--radius-sm);font-size:11px;font-weight:700;cursor:pointer;font-family:var(--ff)">
+              💾 JSON 저장
+            </button>
+            <button onclick="advCopyJson()" id="advCopyBtn"
+              style="flex:1;background:var(--card2);border:1px solid var(--border);color:var(--text);
+                     padding:7px;border-radius:var(--radius-sm);font-size:11px;cursor:pointer;font-family:var(--ff)">
+              📋 복사
+            </button>
+          </div>
+        </div>
+
+        <!-- 목록 패널 -->
+        <div class="card" style="flex:1;padding:0;overflow:hidden">
+          <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+            <span style="font-size:12px;font-weight:700;color:var(--text)">등록된 업체</span>
+            <span id="advCntBadge" style="background:var(--blue-bg);color:var(--blue);font-size:10px;padding:2px 8px;border-radius:8px;font-weight:700;border:1px solid #3b82f633">0개</span>
+            <input id="advSearch" type="text" placeholder="검색..."
+              style="margin-left:auto;background:var(--card2);border:1px solid var(--border);color:var(--text);
+                     padding:5px 10px;border-radius:var(--radius-sm);font-size:12px;font-family:var(--ff);outline:none;width:140px"
+              oninput="advRender()">
+            <button onclick="advClearAll()"
+              style="background:var(--red-bg);border:1px solid #ef444433;color:var(--red);
+                     padding:5px 10px;border-radius:var(--radius-sm);font-size:11px;font-weight:700;cursor:pointer;font-family:var(--ff)">
+              전체 삭제
+            </button>
+          </div>
+          <!-- 헤더 -->
+          <div style="display:grid;grid-template-columns:30px 1fr 140px 60px;gap:0;padding:8px 14px;
+                      border-bottom:1px solid var(--border);font-size:10px;color:var(--muted);font-weight:700">
+            <span>#</span><span>업체명</span><span>계정 ID</span><span style="text-align:center">삭제</span>
+          </div>
+          <div id="advList" style="max-height:500px;overflow-y:auto"></div>
+        </div>
+
+      </div>
+
+      <!-- JSON 미리보기 -->
+      <div class="card" style="margin-top:14px;padding:16px">
+        <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px">📄 advertisers.json 미리보기
+          <span style="font-size:10px;color:var(--muted);font-weight:400;margin-left:8px">저장소의 advertisers.json에 이 내용을 붙여넣으세요</span>
+        </div>
+        <pre id="advJsonPreview" style="font-family:var(--ffm);font-size:11px;color:var(--cyan);background:var(--card2);
+             padding:12px;border-radius:var(--radius-sm);overflow-x:auto;max-height:180px;overflow-y:auto;line-height:1.6">[]</pre>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <script>
-// ═══════════════════════════════════════════════
-// AUTO LOAD CONFIG
-// GitHub Pages URL을 여기에 입력하세요.
-// 예: https://your-username.github.io/coupang-ad-dashboard
-// 로컬에서 직접 열 경우 null로 두면 자동 로드를 건너뜁니다.
-// ═══════════════════════════════════════════════
-const GITHUB_PAGES_BASE = (() => {
-  const h = window.location.origin;
-  // GitHub Pages 환경이면 자동 감지, 아니면 null
-  return h.includes('github.io') ? h + window.location.pathname.replace(/\/[^/]*$/, '') : null;
-})();
-
 // ═══════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════
@@ -1058,12 +1113,13 @@ function deleteFile(i){
 // TAB NAVIGATION
 // ═══════════════════════════════════════════════
 function goTab(tab){
-  ['files','analysis','compare','trend','alerts'].forEach(t=>{
+  ['analysis','compare','trend','alerts','advertisers'].forEach(t=>{
     document.getElementById(`tab-${t}`).classList.toggle('active',t===tab);
     document.getElementById(`nav-${t}`).classList.toggle('active',t===tab);
   });
   if(tab==='trend') renderTrend();
   if(tab==='alerts') refreshAlerts();
+  if(tab==='advertisers') advRender();
 }
 
 // ═══════════════════════════════════════════════
@@ -1079,77 +1135,189 @@ function copyReport(elId,btnId){
 }
 
 // ═══════════════════════════════════════════════
+// ADVERTISERS (업체코드 + 업체명 관리)
+// ═══════════════════════════════════════════════
+// 데이터 구조: [{name:'JJ마케팅', code:'A00172104'}, ...]
+const ADV_KEY = 'coupang_advertisers_v2';
+
+let advList = (() => {
+  try {
+    const saved = sessionStorage.getItem(ADV_KEY);
+    return saved ? JSON.parse(saved) : [{name:'기본업체', code:'A00632242'}];
+  } catch(e) { return [{name:'기본업체', code:'A00632242'}]; }
+})();
+
+// 현재 선택된 업체 인덱스 (사이드바)
+let selectedAdvIdx = 0;
+
+function advSave() {
+  try { sessionStorage.setItem(ADV_KEY, JSON.stringify(advList)); } catch(e) {}
+  const cnt = advList.length;
+  document.getElementById('advCnt').textContent = cnt;
+  document.getElementById('advCntBadge').textContent = cnt + '개';
+  document.getElementById('advJsonPreview').textContent =
+    JSON.stringify(advList.map(a=>({name:a.name, code:a.code})), null, 2);
+  refreshAdvSelector();
+  advRender();
+}
+
+function advAdd() {
+  const name = document.getElementById('advNameInput').value.trim();
+  const code = document.getElementById('advCodeInput').value.trim().toUpperCase();
+  if (!name) { alert('업체명을 입력하세요'); return; }
+  if (!code) { alert('계정 ID를 입력하세요'); return; }
+  if (!/^A\d+$/.test(code)) { alert('계정 ID 형식 오류\n예: A00172104'); return; }
+  if (advList.find(a => a.code === code)) { alert('이미 등록된 코드: ' + code); return; }
+  advList.push({name, code});
+  advList.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
+  document.getElementById('advNameInput').value = '';
+  document.getElementById('advCodeInput').value = '';
+  advSave();
+}
+
+function advBulkAdd() {
+  const bulk = document.getElementById('advBulk').value.trim();
+  if (!bulk) return;
+  const lines = bulk.split(/\n/).map(l => l.trim()).filter(Boolean);
+  let added = 0, errors = [];
+  lines.forEach(line => {
+    const parts = line.split(/[,\t]+/);
+    if (parts.length < 2) { errors.push(line); return; }
+    const name = parts[0].trim();
+    const code = parts[1].trim().toUpperCase();
+    if (!name || !/^A\d+$/.test(code)) { errors.push(line); return; }
+    if (!advList.find(a => a.code === code)) {
+      advList.push({name, code}); added++;
+    }
+  });
+  advList.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
+  document.getElementById('advBulk').value = '';
+  advSave();
+  let msg = `${added}개 추가 완료`;
+  if (errors.length) msg += `\n\n형식 오류 ${errors.length}개:\n${errors.join('\n')}`;
+  alert(msg);
+}
+
+function advRemove(idx) {
+  if (!confirm(`"${advList[idx]?.name}" 을 삭제하시겠습니까?`)) return;
+  advList.splice(idx, 1);
+  if (selectedAdvIdx >= advList.length) selectedAdvIdx = Math.max(0, advList.length - 1);
+  advSave();
+}
+
+function advClearAll() {
+  if (!confirm(`등록된 업체 ${advList.length}개를 모두 삭제하시겠습니까?`)) return;
+  advList = []; selectedAdvIdx = 0;
+  advSave();
+}
+
+function advRender() {
+  const search = (document.getElementById('advSearch')?.value || '').toLowerCase();
+  const el = document.getElementById('advList');
+  const filtered = advList.map((a,i)=>({...a,i}))
+    .filter(a => a.name.toLowerCase().includes(search) || a.code.toLowerCase().includes(search));
+  if (!filtered.length) {
+    el.innerHTML = `<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">
+      ${advList.length ? '검색 결과 없음' : '등록된 업체가 없습니다. 왼쪽에서 추가하세요.'}
+    </div>`;
+    return;
+  }
+  el.innerHTML = filtered.map((a, fi) => `
+    <div style="display:grid;grid-template-columns:30px 1fr 140px 60px;align-items:center;
+                padding:9px 14px;border-bottom:1px solid var(--border);
+                background:${fi%2===0?'transparent':'rgba(255,255,255,0.02)'}">
+      <span style="font-size:10px;color:var(--muted);font-family:var(--ffm)">${a.i+1}</span>
+      <span style="font-size:12px;font-weight:600;color:var(--text)">${a.name}</span>
+      <span style="font-family:var(--ffm);font-size:11px;color:var(--cyan)">${a.code}</span>
+      <div style="text-align:center">
+        <button onclick="advRemove(${a.i})"
+          style="background:transparent;border:1px solid #ef444433;color:var(--red);
+                 padding:2px 8px;border-radius:4px;font-size:10px;cursor:pointer;font-family:var(--ff)">
+          삭제
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// 사이드바 광고주 선택 목록 갱신
+function refreshAdvSelector() {
+  const search = (document.getElementById('advFilterInput')?.value || '').toLowerCase();
+  const el = document.getElementById('advSelectorList');
+  document.getElementById('fcnt').textContent = advList.length;
+
+  const filtered = advList.map((a,i)=>({...a,i}))
+    .filter(a => a.name.toLowerCase().includes(search) || a.code.toLowerCase().includes(search));
+
+  if (!filtered.length) {
+    el.innerHTML = `<div class="no-files">${advList.length ? '검색 결과 없음' : '업체코드를 먼저 등록하세요'}</div>`;
+    return;
+  }
+  el.innerHTML = filtered.map(a => `
+    <div class="file-chip ${selectedAdvIdx === a.i ? 'active' : ''}" onclick="selectAdvertiser(${a.i})">
+      <div class="fc-dot" style="background:var(--blue);flex-shrink:0"></div>
+      <div class="fc-info">
+        <div class="fc-label">${a.name}</div>
+        <div class="fc-type">${a.code}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// 사이드바에서 광고주 선택
+function selectAdvertiser(idx) {
+  selectedAdvIdx = idx;
+  const adv = advList[idx];
+  if (!adv) return;
+
+  // 해당 업체의 파일만 필터링해서 분석 뷰로
+  const filtered = S.files.filter(f => f.filename && f.filename.startsWith(adv.code));
+
+  if (!filtered.length) {
+    // 파일이 없으면 안내
+    alert(`"${adv.name}" (${adv.code}) 의 데이터가 없습니다.\n\ndata/ 폴더에 해당 업체코드로 시작하는 xlsx 파일이 있어야 합니다.`);
+    refreshAdvSelector();
+    return;
+  }
+
+  // S.files를 해당 업체 파일만으로 임시 필터 후 분석 탭으로
+  S._allFiles = S._allFiles || S.files;  // 전체 파일 백업
+  S.files = filtered;
+  afterFilesLoaded();
+  goTab('analysis');
+  refreshAdvSelector();
+
+  // 헤더 업체명 자동 입력
+  const companyInput = document.getElementById('companyInput');
+  if (companyInput) companyInput.value = adv.name;
+}
+
+function advCopyJson() {
+  const text = JSON.stringify(advList.map(a=>({name:a.name,code:a.code})), null, 2);
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('advCopyBtn');
+    btn.textContent = '✓ 복사됨';
+    setTimeout(() => { btn.textContent = '📋 복사'; }, 2000);
+  });
+}
+
+function advSaveJson() {
+  const text = JSON.stringify(advList.map(a=>({name:a.name,code:a.code})), null, 2);
+  const blob = new Blob([text], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'advertisers.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// 초기화
+advSave();
+
+// ═══════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════
 document.getElementById('hdrDate').textContent=new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
-document.getElementById('fi').addEventListener('change',e=>handleFiles(e.target.files));
-const dz=document.getElementById('dropZone');
-dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag');});
-dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
-dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');handleFiles(e.dataTransfer.files);});
-
-// ═══════════════════════════════════════════════
-// AUTO LOAD FROM GITHUB PAGES (data/ 폴더)
-// ═══════════════════════════════════════════════
-function setBanner(icon, title, sub, color='var(--text)'){
-  document.getElementById('bannerIcon').textContent = icon;
-  document.getElementById('bannerTitle').textContent = title;
-  document.getElementById('bannerTitle').style.color = color;
-  document.getElementById('bannerSub').textContent = sub;
-}
-
-async function loadXlsxFromUrl(url, filename){
-  const res = await fetch(url);
-  if(!res.ok) throw new Error(`HTTP ${res.status}`);
-  const buf = await res.arrayBuffer();
-  const range = parseDateRange(filename);
-  if(!range) throw new Error(`날짜 인식 불가: ${filename}`);
-  const wb = XLSX.read(new Uint8Array(buf), {type:'array'});
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(ws);
-  S.files = S.files.filter(f=>!(f.start===range.start && f.end===range.end));
-  S.files.push({...range, rows, filename});
-  S.files.sort((a,b)=>a.start.localeCompare(b.start));
-}
-
-async function loadDataFolder(){
-  if(!GITHUB_PAGES_BASE){
-    setBanner('📂','수동 업로드 모드','GitHub Pages에 배포하면 자동 로드가 활성화됩니다','var(--muted2)');
-    return;
-  }
-  setBanner('⏳','GitHub에서 데이터 로드 중...','data/ 폴더의 xlsx 파일을 불러옵니다');
-
-  try {
-    // GitHub Pages에서는 data/manifest.json으로 파일 목록을 관리
-    const manifestUrl = `${GITHUB_PAGES_BASE}/data/manifest.json`;
-    const mRes = await fetch(manifestUrl + '?t=' + Date.now());
-    if(!mRes.ok) throw new Error('manifest.json 없음');
-    const manifest = await mRes.json(); // ["file1.xlsx","file2.xlsx",...]
-
-    if(!manifest.length){
-      setBanner('📭','다운로드된 데이터 없음','GitHub Actions가 아직 실행되지 않았거나 data/ 폴더가 비어 있습니다','var(--orange)');
-      return;
-    }
-
-    let loaded=0;
-    for(const filename of manifest){
-      try{
-        await loadXlsxFromUrl(`${GITHUB_PAGES_BASE}/data/${filename}`, filename);
-        loaded++;
-      } catch(e){ console.warn('파일 로드 실패:', filename, e); }
-    }
-
-    afterFilesLoaded();
-    setBanner('✅',`${loaded}개 파일 자동 로드 완료`,`마지막 업데이트: ${new Date().toLocaleString('ko-KR')}`,'var(--green)');
-
-  } catch(e){
-    setBanner('⚠️','자동 로드 실패 (수동 업로드 사용 가능)',String(e),'var(--orange)');
-    console.warn('자동 로드 오류:', e);
-  }
-}
-
-// 페이지 로드 시 자동 실행
-loadDataFolder();
+refreshAdvSelector();
 </script>
 </body>
 </html>
