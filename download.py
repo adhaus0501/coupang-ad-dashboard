@@ -1,4 +1,4 @@
-"""
+""" 
 쿠팡 광고센터 자동 다운로드 스크립트
 - advertisers.json 에 등록된 계정 ID만 다운로드
 - 매일 08:00 KST GitHub Actions 실행
