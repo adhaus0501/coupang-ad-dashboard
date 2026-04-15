@@ -1,111 +1,309 @@
 """
 쿠팡 광고센터 자동 다운로드 스크립트
-매일 08:00 KST에 GitHub Actions로 실행됩니다.
+- advertisers.json 에 등록된 계정 ID만 다운로드
+- 매일 08:00 KST GitHub Actions 실행
 """
 
-import os
-import time
-import glob
+import os, json, time
 from datetime import datetime, timedelta
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 COUPANG_ID = os.environ["COUPANG_ID"]
 COUPANG_PW = os.environ["COUPANG_PW"]
 
-# 다운로드할 기간: 어제 하루치 (일별 리포트)
-yesterday = datetime.now() - timedelta(days=1)
-date_str  = yesterday.strftime("%Y%m%d")   # e.g. 20260415
-date_disp = yesterday.strftime("%Y.%m.%d") # e.g. 2026.04.15
+yesterday  = datetime.now() - timedelta(days=1)
+date_str   = yesterday.strftime("%Y%m%d")
+date_disp  = yesterday.strftime("%Y.%m.%d")
 
 OUTPUT_DIR = "data"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+def load_advertisers():
+    path = "advertisers.json"
+    if not os.path.exists(path):
+        print("❌ advertisers.json 없음"); return []
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    result = []
+    for item in data:
+        if isinstance(item, str):
+            result.append({"name": item, "code": item})
+        elif isinstance(item, dict):
+            result.append(item)
+    print(f"📋 업체코드 {len(result)}개: {[a['code'] for a in result]}")
+    return result
+
 def run():
+    advertisers = load_advertisers()
+    if not advertisers:
+        print("등록된 업체코드 없음 - 종료"); return
+
     with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage"]
-        )
-        ctx = browser.new_context(accept_downloads=True)
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox","--disable-dev-shm-usage"])
+        ctx  = browser.new_context(accept_downloads=True)
         page = ctx.new_page()
 
-        # ── 1. 로그인 ──────────────────────────────────────────
-        print("🔐 쿠팡 광고센터 로그인 중...")
-        page.goto("https://ads.coupang.com", wait_until="networkidle")
+        print("🔐 로그인 중...")
+        page.goto("https://advertising.coupang.com/user/login", wait_until="networkidle")
         time.sleep(2)
+        page.screenshot(path="debug_01_login.png")
 
-        page.fill('input[name="username"], input[type="email"], #userId', COUPANG_ID)
-        page.fill('input[name="password"], input[type="password"], #userPw', COUPANG_PW)
-        page.click('button[type="submit"], .login-btn, #loginBtn')
+        page.fill('#username', COUPANG_ID, timeout=10000)
+        print("✅ 아이디 입력 완료")
+        page.fill('#password', COUPANG_PW, timeout=10000)
+        print("✅ 비밀번호 입력 완료")
+        page.click('#kc-login', timeout=10000)
+        print("✅ 로그인 버튼 클릭")
+
         page.wait_for_load_state("networkidle")
         time.sleep(3)
+        page.screenshot(path="debug_02_after_login.png")
         print("✅ 로그인 완료")
 
-        # ── 2. 리포트 메뉴 이동 ────────────────────────────────
-        print("📊 리포트 페이지 이동 중...")
-        # 쿠팡 광고센터 리포트 URL (실제 경로가 다를 경우 아래에서 조정)
-        page.goto("https://ads.coupang.com/report/campaign", wait_until="networkidle")
-        time.sleep(3)
-
-        # 메뉴가 없으면 좌측 네비게이션에서 클릭
-        try:
-            page.click('a[href*="report"], .menu-report, [data-menu="report"]', timeout=5000)
-            page.wait_for_load_state("networkidle")
-            time.sleep(2)
-        except Exception:
-            pass  # 이미 리포트 페이지에 있는 경우
-
-        # ── 3. 날짜 범위 설정 (어제 하루) ─────────────────────
-        print(f"📅 날짜 설정: {date_disp}")
-        try:
-            # 날짜 피커 열기
-            page.click('.date-picker, .date-range, [class*="datepicker"], [class*="DatePicker"]', timeout=5000)
-            time.sleep(1)
-
-            # 시작일 = 종료일 = 어제
-            for selector in ['.start-date input', '.date-start input', 'input.start']:
-                try:
-                    page.fill(selector, date_disp, timeout=2000)
-                    break
-                except Exception:
-                    pass
-
-            for selector in ['.end-date input', '.date-end input', 'input.end']:
-                try:
-                    page.fill(selector, date_disp, timeout=2000)
-                    break
-                except Exception:
-                    pass
-
-            # 조회 버튼 클릭
-            page.click('button:has-text("조회"), button:has-text("검색"), .btn-search', timeout=5000)
-            page.wait_for_load_state("networkidle")
-            time.sleep(3)
-        except Exception as e:
-            print(f"⚠️  날짜 설정 실패 (수동 확인 필요): {e}")
-
-        # ── 4. 다운로드 ────────────────────────────────────────
-        print("⬇️  파일 다운로드 중...")
-        try:
-            with page.expect_download(timeout=30000) as dl_info:
-                page.click(
-                    'button:has-text("다운로드"), button:has-text("엑셀"), '
-                    '.btn-download, [class*="download"], a[download]',
-                    timeout=10000
-                )
-            download = dl_info.value
-            # 파일명 형식: A00172104_pa_total_campaign_YYYYMMDD_YYYYMMDD.xlsx
-            save_path = os.path.join(OUTPUT_DIR, download.suggested_filename or f"report_{date_str}_{date_str}.xlsx")
-            download.save_as(save_path)
-            print(f"✅ 저장 완료: {save_path}")
-        except Exception as e:
-            print(f"❌ 다운로드 실패: {e}")
-            # 스크린샷 저장 (디버깅용)
-            page.screenshot(path="debug_screenshot.png")
-            print("🖼  debug_screenshot.png 저장됨 (Actions Artifacts에서 확인)")
-            raise
+        for idx, adv in enumerate(advertisers):
+            adv_id   = adv["code"]
+            adv_name = adv.get("name", adv_id)
+            print(f"\n[{idx+1}/{len(advertisers)}] {adv_name} ({adv_id}) 처리 중...")
+            try:
+                download_for(page, adv_id, adv_name, idx)
+            except Exception as e:
+                print(f"❌ {adv_name} 실패: {e}")
+                page.screenshot(path=f"debug_error_{adv_id}.png")
 
         browser.close()
+    print("\n✅ 전체 완료")
+
+
+def download_for(page, adv_id, adv_name, idx):
+    try:
+        page.click('button:has-text("계정 전환"), button:has-text("광고주 변경"), [class*="accountSwitch"]', timeout=4000)
+        time.sleep(1)
+    except PWTimeout:
+        page.goto("https://advertising.coupang.com/advertiser/select", wait_until="networkidle")
+        time.sleep(2)
+
+    page.screenshot(path=f"debug_{idx:02d}_{adv_id}_01_select.png")
+
+    for sel in ['input[placeholder*="검색"]', 'input[placeholder*="광고주"]', '#advertiserSearch', 'input[type="search"]']:
+        try:
+            page.fill(sel, adv_id, timeout=3000); time.sleep(1)
+            print(f"  ✅ 검색: {adv_id}"); break
+        except Exception: continue
+
+    try:
+        page.click(f'[data-id="{adv_id}"], li:has-text("{adv_id}"), td:has-text("{adv_id}")', timeout=7000)
+    except PWTimeout:
+        page.click('.advertiser-item:first-child, ul li:first-child, table tbody tr:first-child', timeout=5000)
+
+    page.wait_for_load_state("networkidle"); time.sleep(2)
+    page.screenshot(path=f"debug_{idx:02d}_{adv_id}_02_home.png")
+
+    try:
+        page.click('a:has-text("광고보고서"), a:has-text("광고 보고서"), nav a:has-text("보고서")', timeout=6000)
+        page.wait_for_load_state("networkidle"); time.sleep(1)
+    except PWTimeout:
+        page.goto("https://advertising.coupang.com/report/campaign", wait_until="networkidle"); time.sleep(2)
+
+    try:
+        page.click('a:has-text("매출 성장 광고 보고서"), li:has-text("매출 성장"), [href*="total_campaign"]', timeout=6000)
+        page.wait_for_load_state("networkidle"); time.sleep(2)
+    except PWTimeout:
+        print("  ⚠️  매출 성장 보고서 메뉴 못 찾음")
+
+    page.screenshot(path=f"debug_{idx:02d}_{adv_id}_03_report.png")
+
+    try:
+        page.click('.date-picker, [class*="datePicker"], [class*="date-range"]', timeout=4000); time.sleep(1)
+        for sel in ['input[class*="start"]', 'input[name*="start"]', '.date-input:first-child input']:
+            try: page.fill(sel, date_disp, timeout=2000); break
+            except Exception: pass
+        for sel in ['input[class*="end"]', 'input[name*="end"]', '.date-input:last-child input']:
+            try: page.fill(sel, date_disp, timeout=2000); break
+            except Exception: pass
+        page.keyboard.press("Enter"); time.sleep(1)
+    except Exception as e:
+        print(f"  ⚠️  날짜 설정 실패: {e}")
+
+    try:
+        page.click('button:has-text("캠페인을 선택"), [placeholder*="캠페인"]', timeout=6000); time.sleep(1)
+        page.click('label:has-text("전체선택"), label:has-text("전체 선택"), .select-all input', timeout=4000); time.sleep(1)
+        page.click('button:has-text("확인")', timeout=4000); time.sleep(1)
+        print("  ✅ 캠페인 전체 선택")
+    except Exception as e:
+        print(f"  ⚠️  캠페인 선택 실패: {e}")
+
+    page.screenshot(path=f"debug_{idx:02d}_{adv_id}_04_campaign.png")
+
+    try:
+        page.click('button:has-text("보고서 만들기"), button:has-text("조회")', timeout=6000)
+        page.wait_for_load_state("networkidle"); time.sleep(5)
+        print("  ✅ 보고서 생성")
+    except Exception as e:
+        print(f"  ⚠️  보고서 생성 실패: {e}")
+
+    page.screenshot(path=f"debug_{idx:02d}_{adv_id}_05_done.png")
+
+    with page.expect_download(timeout=30000) as dl_info:
+        page.click('button:has-text("다운로드"), a:has-text("다운로드"), [class*="download"]:visible', timeout=10000)
+    dl = dl_info.value
+    fname = dl.suggested_filename or f"{adv_id}_pa_total_campaign_{date_str}_{date_str}.xlsx"
+    dl.save_as(os.path.join(OUTPUT_DIR, fname))
+    print(f"  ✅ 저장: {fname}")
+
+
+if __name__ == "__main__":
+    run()"""
+쿠팡 광고센터 자동 다운로드 스크립트
+- advertisers.json 에 등록된 계정 ID만 다운로드
+- 매일 08:00 KST GitHub Actions 실행
+"""
+
+import os, json, time
+from datetime import datetime, timedelta
+from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+
+COUPANG_ID = os.environ["COUPANG_ID"]
+COUPANG_PW = os.environ["COUPANG_PW"]
+
+yesterday  = datetime.now() - timedelta(days=1)
+date_str   = yesterday.strftime("%Y%m%d")
+date_disp  = yesterday.strftime("%Y.%m.%d")
+
+OUTPUT_DIR = "data"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+def load_advertisers():
+    path = "advertisers.json"
+    if not os.path.exists(path):
+        print("❌ advertisers.json 없음"); return []
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    result = []
+    for item in data:
+        if isinstance(item, str):
+            result.append({"name": item, "code": item})
+        elif isinstance(item, dict):
+            result.append(item)
+    print(f"📋 업체코드 {len(result)}개: {[a['code'] for a in result]}")
+    return result
+
+def run():
+    advertisers = load_advertisers()
+    if not advertisers:
+        print("등록된 업체코드 없음 - 종료"); return
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox","--disable-dev-shm-usage"])
+        ctx  = browser.new_context(accept_downloads=True)
+        page = ctx.new_page()
+
+        print("🔐 로그인 중...")
+        page.goto("https://advertising.coupang.com/user/login", wait_until="networkidle")
+        time.sleep(2)
+        page.screenshot(path="debug_01_login.png")
+
+        page.fill('#username', COUPANG_ID, timeout=10000)
+        print("✅ 아이디 입력 완료")
+        page.fill('#password', COUPANG_PW, timeout=10000)
+        print("✅ 비밀번호 입력 완료")
+        page.click('#kc-login', timeout=10000)
+        print("✅ 로그인 버튼 클릭")
+
+        page.wait_for_load_state("networkidle")
+        time.sleep(3)
+        page.screenshot(path="debug_02_after_login.png")
+        print("✅ 로그인 완료")
+
+        for idx, adv in enumerate(advertisers):
+            adv_id   = adv["code"]
+            adv_name = adv.get("name", adv_id)
+            print(f"\n[{idx+1}/{len(advertisers)}] {adv_name} ({adv_id}) 처리 중...")
+            try:
+                download_for(page, adv_id, adv_name, idx)
+            except Exception as e:
+                print(f"❌ {adv_name} 실패: {e}")
+                page.screenshot(path=f"debug_error_{adv_id}.png")
+
+        browser.close()
+    print("\n✅ 전체 완료")
+
+
+def download_for(page, adv_id, adv_name, idx):
+    try:
+        page.click('button:has-text("계정 전환"), button:has-text("광고주 변경"), [class*="accountSwitch"]', timeout=4000)
+        time.sleep(1)
+    except PWTimeout:
+        page.goto("https://advertising.coupang.com/advertiser/select", wait_until="networkidle")
+        time.sleep(2)
+
+    page.screenshot(path=f"debug_{idx:02d}_{adv_id}_01_select.png")
+
+    for sel in ['input[placeholder*="검색"]', 'input[placeholder*="광고주"]', '#advertiserSearch', 'input[type="search"]']:
+        try:
+            page.fill(sel, adv_id, timeout=3000); time.sleep(1)
+            print(f"  ✅ 검색: {adv_id}"); break
+        except Exception: continue
+
+    try:
+        page.click(f'[data-id="{adv_id}"], li:has-text("{adv_id}"), td:has-text("{adv_id}")', timeout=7000)
+    except PWTimeout:
+        page.click('.advertiser-item:first-child, ul li:first-child, table tbody tr:first-child', timeout=5000)
+
+    page.wait_for_load_state("networkidle"); time.sleep(2)
+    page.screenshot(path=f"debug_{idx:02d}_{adv_id}_02_home.png")
+
+    try:
+        page.click('a:has-text("광고보고서"), a:has-text("광고 보고서"), nav a:has-text("보고서")', timeout=6000)
+        page.wait_for_load_state("networkidle"); time.sleep(1)
+    except PWTimeout:
+        page.goto("https://advertising.coupang.com/report/campaign", wait_until="networkidle"); time.sleep(2)
+
+    try:
+        page.click('a:has-text("매출 성장 광고 보고서"), li:has-text("매출 성장"), [href*="total_campaign"]', timeout=6000)
+        page.wait_for_load_state("networkidle"); time.sleep(2)
+    except PWTimeout:
+        print("  ⚠️  매출 성장 보고서 메뉴 못 찾음")
+
+    page.screenshot(path=f"debug_{idx:02d}_{adv_id}_03_report.png")
+
+    try:
+        page.click('.date-picker, [class*="datePicker"], [class*="date-range"]', timeout=4000); time.sleep(1)
+        for sel in ['input[class*="start"]', 'input[name*="start"]', '.date-input:first-child input']:
+            try: page.fill(sel, date_disp, timeout=2000); break
+            except Exception: pass
+        for sel in ['input[class*="end"]', 'input[name*="end"]', '.date-input:last-child input']:
+            try: page.fill(sel, date_disp, timeout=2000); break
+            except Exception: pass
+        page.keyboard.press("Enter"); time.sleep(1)
+    except Exception as e:
+        print(f"  ⚠️  날짜 설정 실패: {e}")
+
+    try:
+        page.click('button:has-text("캠페인을 선택"), [placeholder*="캠페인"]', timeout=6000); time.sleep(1)
+        page.click('label:has-text("전체선택"), label:has-text("전체 선택"), .select-all input', timeout=4000); time.sleep(1)
+        page.click('button:has-text("확인")', timeout=4000); time.sleep(1)
+        print("  ✅ 캠페인 전체 선택")
+    except Exception as e:
+        print(f"  ⚠️  캠페인 선택 실패: {e}")
+
+    page.screenshot(path=f"debug_{idx:02d}_{adv_id}_04_campaign.png")
+
+    try:
+        page.click('button:has-text("보고서 만들기"), button:has-text("조회")', timeout=6000)
+        page.wait_for_load_state("networkidle"); time.sleep(5)
+        print("  ✅ 보고서 생성")
+    except Exception as e:
+        print(f"  ⚠️  보고서 생성 실패: {e}")
+
+    page.screenshot(path=f"debug_{idx:02d}_{adv_id}_05_done.png")
+
+    with page.expect_download(timeout=30000) as dl_info:
+        page.click('button:has-text("다운로드"), a:has-text("다운로드"), [class*="download"]:visible', timeout=10000)
+    dl = dl_info.value
+    fname = dl.suggested_filename or f"{adv_id}_pa_total_campaign_{date_str}_{date_str}.xlsx"
+    dl.save_as(os.path.join(OUTPUT_DIR, fname))
+    print(f"  ✅ 저장: {fname}")
+
 
 if __name__ == "__main__":
     run()
