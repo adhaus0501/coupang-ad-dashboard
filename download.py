@@ -43,36 +43,52 @@ def run():
         time.sleep(2)
         page.screenshot(path="debug_01_first_page.png")
 
-        # 2. 페이지의 모든 버튼 텍스트 출력 (디버깅용)
-        buttons = page.evaluate("""
-            () => Array.from(document.querySelectorAll('button, a'))
-                       .map(el => el.textContent.trim())
-                       .filter(t => t.length > 0)
-        """)
-        print(f"페이지 버튼 목록: {buttons}")
+        # 2. 페이지 HTML 전체 출력 (버튼 구조 파악용)
+        html_snippet = page.evaluate("() => document.body.innerHTML.slice(0, 3000)")
+        print(f"HTML 앞부분: {html_snippet}")
 
-        # 3. #username이 있으면 바로 로그인, 없으면 버튼 클릭 시도
+        # 3. 모든 클릭 가능한 요소 출력
+        clickables = page.evaluate("""
+            () => Array.from(document.querySelectorAll('button, a, [role="button"], [onclick]'))
+                .map(el => ({
+                    tag: el.tagName,
+                    text: el.textContent.trim().slice(0, 50),
+                    class: el.className.slice(0, 50),
+                    href: el.href || ''
+                }))
+        """)
+        print(f"클릭 가능 요소: {clickables}")
+
+        # 4. #username이 바로 있으면 건너뜀, 없으면 모든 버튼 순서대로 시도
         if page.locator('#username').count() > 0:
-            print("이미 로그인 화면 - 바로 입력")
+            print("이미 로그인 폼 표시됨")
         else:
-            print("버튼 클릭 시도...")
-            # 오른쪽 버튼(마지막 버튼) 클릭
-            try:
-                # 페이지의 모든 버튼 중 마지막 것 클릭 (오른쪽 로그인하기)
-                all_btns = page.locator('button')
-                count = all_btns.count()
-                print(f"버튼 {count}개 발견")
-                if count > 0:
-                    all_btns.last.click()
+            print("로그인 폼 없음 - 버튼 클릭 시도...")
+            # 페이지의 버튼을 하나씩 클릭해서 #username이 나올 때까지 시도
+            btns = page.locator('button, a').all()
+            print(f"총 {len(btns)}개 요소 발견")
+            for i, btn in enumerate(btns):
+                try:
+                    txt = btn.text_content().strip()
+                    print(f"  [{i}] 클릭 시도: '{txt}'")
+                    btn.click(timeout=2000)
+                    time.sleep(1)
+                    if page.locator('#username').count() > 0:
+                        print(f"  -> #username 발견! 성공")
+                        break
+                    # 클릭 후 페이지가 바뀌었으면 다시 대기
                     page.wait_for_load_state("networkidle")
-                    time.sleep(2)
-                    print("마지막 버튼 클릭 완료")
-            except Exception as e:
-                print(f"버튼 클릭 실패: {e}")
+                    time.sleep(1)
+                    if page.locator('#username').count() > 0:
+                        print(f"  -> #username 발견! 성공")
+                        break
+                except Exception as e:
+                    print(f"  [{i}] 실패: {e}")
+                    continue
 
         page.screenshot(path="debug_02_after_click.png")
 
-        # 4. #username 대기 후 로그인
+        # 5. #username 대기 후 로그인
         print("#username 대기...")
         page.wait_for_selector('#username', state='visible', timeout=15000)
         page.fill('#username', COUPANG_ID)
@@ -87,7 +103,6 @@ def run():
         page.screenshot(path="debug_03_after_login.png")
         print("로그인 완료")
 
-        # 5. 각 업체코드별 다운로드
         for idx, adv in enumerate(advertisers):
             adv_id   = adv["code"]
             adv_name = adv.get("name", adv_id)
